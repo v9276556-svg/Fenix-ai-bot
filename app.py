@@ -183,10 +183,7 @@ TELEGRAM_WEBAPP_HTML = '''
         // Инициализация Telegram Web App
         let tg = window.Telegram.WebApp;
         
-        // Показываем главную кнопку
-        tg.MainButton.setText("ЗАКРЫТЬ WEB APP").show().onClick(function() {
-            tg.close();
-        });
+
         
         // Расширяем на весь экран
         tg.expand();
