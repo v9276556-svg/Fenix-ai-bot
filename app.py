@@ -1,34 +1,20 @@
 from flask import Flask, request, jsonify, render_template_string
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-import os
-import logging
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# 🔑 КОНФИГУРАЦИЯ
-TELEGRAM_TOKEN = "7945400830:AAHqPnOUwiFy3ntyhWh8Uila7Ut3O3MHdUQ"  # Твой токен бота
-VERCEL_URL = "https://fenix-ai-bot-tau.vercel.app"  # Замени на свой Vercel URL
-GITHUB_REPO = "https://github.com/v9276556-svg"  # Замени на свой GitHub репозиторий
+import requests
+import json
 
 app = Flask(__name__)
 
-# Инициализация бота
-application = Application.builder().token(TELEGRAM_TOKEN).build()
+VERCEL_API_URL = "https://fenix-ai-bot-tau.vercel.app"
 
-# 📊 Хранилище данных
-user_data = {}
-
-# 🎨 КРАСИВЫЙ HTML ДИЗАЙН
-HTML_TEMPLATE = '''
+# Telegram Web App HTML с JavaScript для работы с API
+TELEGRAM_WEBAPP_HTML = '''
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🤖 Fenix AI - Stylish Web App</title>
+    <title>Fenix AI - Web App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * {
             margin: 0;
@@ -37,182 +23,110 @@ HTML_TEMPLATE = '''
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
             color: #333;
         }
         
         .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
+            max-width: 100%;
+            padding: 20px;
         }
         
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px 30px;
             text-align: center;
+            color: white;
+            padding: 30px 20px;
         }
         
         .header h1 {
-            font-size: 3em;
-            margin-bottom: 10px;
-            font-weight: 700;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            font-weight: 600;
         }
         
         .header p {
-            font-size: 1.3em;
             opacity: 0.9;
-            margin-bottom: 20px;
+            font-size: 14px;
         }
         
-        .status-badge {
-            display: inline-block;
-            background: rgba(255,255,255,0.2);
-            padding: 8px 20px;
-            border-radius: 50px;
-            font-size: 0.9em;
-            margin: 10px 0;
-        }
-        
-        .content {
-            padding: 40px;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin: 30px 0;
-        }
-        
-        .stat-card {
-            background: #f8f9fa;
-            padding: 25px;
-            border-radius: 15px;
-            text-align: center;
-            border-left: 5px solid #667eea;
-        }
-        
-        .stat-number {
-            font-size: 2.5em;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 10px;
-        }
-        
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 25px;
-            margin: 40px 0;
-        }
-        
-        .feature-card {
+        .card {
             background: white;
-            padding: 25px;
             border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            text-align: center;
-            transition: transform 0.3s ease;
-            border: 2px solid #f1f3f4;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-5px);
-            border-color: #667eea;
-        }
-        
-        .feature-icon {
-            font-size: 3em;
-            margin-bottom: 20px;
-        }
-        
-        .feature-title {
-            font-size: 1.3em;
-            font-weight: 600;
-            margin-bottom: 15px;
-            color: #2d3748;
+            padding: 20px;
+            margin: 10px 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         
         .btn {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background: #0088cc;
             color: white;
-            padding: 15px 30px;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 600;
-            margin: 10px;
-            transition: all 0.3s ease;
             border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 500;
+            margin: 10px 0;
             cursor: pointer;
-            font-size: 1em;
+            transition: all 0.3s ease;
         }
         
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
-            color: white;
-            text-decoration: none;
+            background: #0077b3;
+            transform: translateY(-1px);
         }
         
-        .btn-telegram {
-            background: #0088cc;
+        .btn-secondary {
+            background: #6c757d;
         }
         
-        .btn-github {
-            background: #333;
+        .feature {
+            padding: 15px;
+            border-left: 4px solid #0088cc;
+            margin: 10px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
         }
         
-        .footer {
+        .status {
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
             text-align: center;
-            padding: 30px;
-            background: #f8f9fa;
-            color: #6c757d;
-            border-top: 1px solid #e9ecef;
+            font-weight: 500;
         }
         
-        .api-section {
-            background: #f8f9fa;
-            padding: 30px;
-            border-radius: 15px;
-            margin: 30px 0;
+        .status.healthy {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
         }
         
-        .code {
-            background: #2d3748;
-            color: #e2e8f0;
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .user-info {
+            background: #e7f3ff;
             padding: 15px;
             border-radius: 10px;
-            font-family: 'Courier New', monospace;
-            margin: 15px 0;
-            overflow-x: auto;
+            margin: 10px 0;
+            border: 1px solid #b3d9ff;
         }
         
-        @media (max-width: 768px) {
-            .container {
-                margin: 10px;
-                border-radius: 15px;
-            }
-            
-            .header h1 {
-                font-size: 2.2em;
-            }
-            
-            .content {
-                padding: 20px;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .hidden {
+            display: none;
         }
     </style>
 </head>
@@ -220,231 +134,290 @@ HTML_TEMPLATE = '''
     <div class="container">
         <div class="header">
             <h1>🤖 Fenix AI</h1>
-            <p>Интеллектуальный ассистент нового поколения</p>
-            <div class="status-badge">🚀 Статус: Активен | 💡 Версия: 2.0.0</div>
+            <p>Web App внутри Telegram • Vercel API</p>
         </div>
         
-        <div class="content">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h2 style="color: #2d3748; margin-bottom: 15px;">Добро пожаловать в Fenix AI!</h2>
-                <p style="font-size: 1.1em; color: #6c757d; max-width: 600px; margin: 0 auto;">
-                    Мощный Telegram бот с искусственным интеллектом, развернутый на Vercel. 
-                    Всегда онлайн, всегда доступен.
-                </p>
+        <div id="userInfo" class="user-info hidden">
+            <strong>👤 Информация о пользователе</strong>
+            <div id="userData">Загрузка...</div>
+        </div>
+        
+        <div class="card">
+            <h3>🚀 Быстрые действия</h3>
+            <button class="btn" onclick="checkHealth()">📊 Проверить статус API</button>
+            <button class="btn" onclick="getBotInfo()">🤖 Информация о боте</button>
+            <button class="btn btn-secondary" onclick="sendToBot('help')">💡 Получить помощь</button>
+        </div>
+        
+        <div id="statusCard" class="card hidden">
+            <h3>📈 Статус системы</h3>
+            <div id="statusContent"></div>
+        </div>
+        
+        <div class="card">
+            <h3>🌐 Интеграции</h3>
+            <div class="feature">
+                <strong>Vercel API</strong>
+                <p>Сервер развернут на Vercel</p>
+                <small id="apiStatus">Проверка соединения...</small>
             </div>
-            
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number">{{ user_count }}</div>
-                    <div>Активных пользователей</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">24/7</div>
-                    <div>Время работы</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">Vercel</div>
-                    <div>Платформа</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">2.0.0</div>
-                    <div>Версия приложения</div>
-                </div>
+            <div class="feature">
+                <strong>Telegram Bot</strong>
+                <p>Полная интеграция с ботом</p>
             </div>
-            
-            <div class="features">
-                <div class="feature-card">
-                    <div class="feature-icon">💬</div>
-                    <div class="feature-title">Умный чат-бот</div>
-                    <p>Интеллектуальный ассистент в Telegram с поддержкой кнопок и меню</p>
-                    <a href="https://t.me/fenix_ai_test_bot" class="btn btn-telegram" target="_blank">Открыть бота</a>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">🌐</div>
-                    <div class="feature-title">Веб-интерфейс</div>
-                    <p>Красивый и адаптивный веб-сайт с информацией о проекте</p>
-                    <a href="{{ vercel_url }}" class="btn">Обновить страницу</a>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">⚡</div>
-                    <div class="feature-title">REST API</div>
-                    <p>Полноценное API для интеграции с другими сервисами</p>
-                    <a href="{{ vercel_url }}/health" class="btn">Проверить API</a>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">🔧</div>
-                    <div class="feature-title">GitHub</div>
-                    <p>Открытый исходный код и автоматические деплои</p>
-                    <a href="{{ github_repo }}" class="btn btn-github" target="_blank">Исходный код</a>
-                </div>
-            </div>
-            
-            <div class="api-section">
-                <h3 style="color: #2d3748; margin-bottom: 20px;">🔗 API Endpoints</h3>
-                <div class="code">
-                    GET {{ vercel_url }}/health<br>
-                    → Проверка здоровья сервиса
-                </div>
-                <div class="code">
-                    GET {{ vercel_url }}/api/status<br>
-                    → Полная статистика системы
-                </div>
-                <div class="code">
-                    POST {{ vercel_url }}/webhook<br>
-                    → Webhook для Telegram бота
-                </div>
-            </div>
-            
-            <div style="text-align: center; margin-top: 40px;">
-                <h3 style="color: #2d3748; margin-bottom: 20px;">🚀 Быстрый старт</h3>
-                <a href="https://t.me/fenix_ai_test_bot?start=web" class="btn btn-telegram">Начать общение с ботом</a>
-                <a href="{{ vercel_url }}/status" class="btn">Статус системы</a>
-                <a href="https://core.telegram.org/bots/api" class="btn" target="_blank">Документация</a>
+            <div class="feature">
+                <strong>Web App</strong>
+                <p>Работает внутри Telegram</p>
             </div>
         </div>
         
-        <div class="footer">
-            <p>© 2024 Fenix AI Assistant. Все права защищены.</p>
-            <p>Разработано с ❤️ для сообщества Telegram</p>
-            <p style="margin-top: 10px; font-size: 0.9em;">
-                <strong>Deployment:</strong> Vercel | 
-                <strong>Framework:</strong> Flask | 
-                <strong>Version:</strong> 2.0.0
-            </p>
+        <div class="card">
+            <h3>⚡ Тестирование API</h3>
+            <button class="btn" onclick="testEndpoint('/health')">Тест /health</button>
+            <button class="btn" onclick="testEndpoint('/api/status')">Тест /api/status</button>
+            <button class="btn btn-secondary" onclick="showUserData()">Показать данные Telegram</button>
         </div>
     </div>
+
+    <script>
+        // Инициализация Telegram Web App
+        let tg = window.Telegram.WebApp;
+        
+        // Показываем главную кнопку
+        tg.MainButton.setText("ЗАКРЫТЬ WEB APP").show().onClick(function() {
+            tg.close();
+        });
+        
+        // Расширяем на весь экран
+        tg.expand();
+        
+        // Показываем данные пользователя
+        function showUserData() {
+            const user = tg.initDataUnsafe.user;
+            const userInfo = document.getElementById('userInfo');
+            const userData = document.getElementById('userData');
+            
+            if (user) {
+                userData.innerHTML = `
+                    <div>ID: ${user.id}</div>
+                    <div>Имя: ${user.first_name}</div>
+                    <div>Фамилия: ${user.last_name || 'Не указана'}</div>
+                    <div>Username: @${user.username || 'Не указан'}</div>
+                    <div>Язык: ${user.language_code || 'Не указан'}</div>
+                `;
+                userInfo.classList.remove('hidden');
+            } else {
+                userData.innerHTML = 'Данные пользователя недоступны';
+                userInfo.classList.remove('hidden');
+            }
+        }
+        
+        // Проверка здоровья API
+        async function checkHealth() {
+            showLoading('statusContent', 'Проверка API...');
+            document.getElementById('statusCard').classList.remove('hidden');
+            
+            try {
+                const response = await fetch('{{ vercel_url }}/health');
+                const data = await response.json();
+                
+                document.getElementById('statusContent').innerHTML = `
+                    <div class="status healthy">
+                        ✅ API работает нормально
+                    </div>
+                    <div><strong>Сервис:</strong> ${data.service}</div>
+                    <div><strong>Версия:</strong> ${data.version}</div>
+                    <div><strong>Статус:</strong> ${data.status}</div>
+                    <div><strong>Время:</strong> ${new Date().toLocaleTimeString()}</div>
+                `;
+                
+                // Обновляем статус в features
+                document.getElementById('apiStatus').innerHTML = '✅ Соединение установлено';
+                document.getElementById('apiStatus').style.color = 'green';
+                
+            } catch (error) {
+                document.getElementById('statusContent').innerHTML = `
+                    <div class="status error">
+                        ❌ Ошибка подключения к API
+                    </div>
+                    <div>${error.message}</div>
+                `;
+                
+                document.getElementById('apiStatus').innerHTML = '❌ Ошибка соединения';
+                document.getElementById('apiStatus').style.color = 'red';
+            }
+        }
+        
+        // Получение информации о боте
+        async function getBotInfo() {
+            showLoading('statusContent', 'Получение информации о боте...');
+            document.getElementById('statusCard').classList.remove('hidden');
+            
+            try {
+                const response = await fetch('{{ vercel_url }}/api/status');
+                const data = await response.json();
+                
+                document.getElementById('statusContent').innerHTML = `
+                    <div class="status healthy">
+                        🤖 Бот активен
+                    </div>
+                    <div><strong>Web App:</strong> ${data.web_app}</div>
+                    <div><strong>Telegram Bot:</strong> ${data.telegram_bot}</div>
+                    <div><strong>Пользователей:</strong> ${data.users_count}</div>
+                    <div><strong>Деплой:</strong> ${data.deployment}</div>
+                    <div><strong>URL:</strong> ${data.url}</div>
+                `;
+            } catch (error) {
+                document.getElementById('statusContent').innerHTML = `
+                    <div class="status error">
+                        ❌ Ошибка получения данных
+                    </div>
+                    <div>${error.message}</div>
+                `;
+            }
+        }
+        
+        // Тестирование endpoint
+        async function testEndpoint(endpoint) {
+            showLoading('statusContent', `Тестирование ${endpoint}...`);
+            document.getElementById('statusCard').classList.remove('hidden');
+            
+            try {
+                const response = await fetch(`{{ vercel_url }}${endpoint}`);
+                const data = await response.json();
+                
+                document.getElementById('statusContent').innerHTML = `
+                    <div class="status healthy">
+                        ✅ ${endpoint} работает
+                    </div>
+                    <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto;">${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                document.getElementById('statusContent').innerHTML = `
+                    <div class="status error">
+                        ❌ Ошибка ${endpoint}
+                    </div>
+                    <div>${error.message}</div>
+                `;
+            }
+        }
+        
+        // Отправка данных боту
+        function sendToBot(action) {
+            const user = tg.initDataUnsafe.user;
+            tg.sendData(JSON.stringify({
+                action: action,
+                user_id: user ? user.id : 'unknown',
+                timestamp: new Date().getTime()
+            }));
+            
+            // Показываем уведомление
+            showNotification(`Команда "${action}" отправлена боту`);
+        }
+        
+        // Вспомогательные функции
+        function showLoading(elementId, text) {
+            document.getElementById(elementId).innerHTML = `
+                <div class="loading">
+                    <div>${text}</div>
+                    <div>⏳ Загрузка...</div>
+                </div>
+            `;
+        }
+        
+        function showNotification(message) {
+            tg.showPopup({
+                title: "Уведомление",
+                message: message,
+                buttons: [{ type: "ok" }]
+            });
+        }
+        
+        // Автоматическая проверка при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            showUserData();
+            checkHealth();
+        });
+    </script>
 </body>
 </html>
 '''
 
-# 🎨 КЛАВИАТУРЫ ДЛЯ ТЕЛЕГРАММ
-def main_menu_keyboard():
-    keyboard = [
-        [InlineKeyboardButton("🚀 Функции", callback_data="features")],
-        [InlineKeyboardButton("📊 Статус", callback_data="status")],
-        [InlineKeyboardButton("⚙️ Настройки", callback_data="settings")],
-        [InlineKeyboardButton("💡 Помощь", callback_data="help")],
-        [InlineKeyboardButton("🌐 Ссылки", callback_data="links")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def features_keyboard():
-    keyboard = [
-        [InlineKeyboardButton("📝 Создать заметку", callback_data="create_note")],
-        [InlineKeyboardButton("🎯 Задачи", callback_data="tasks")],
-        [InlineKeyboardButton("📅 Календарь", callback_data="calendar")],
-        [InlineKeyboardButton("📊 Аналитика", callback_data="analytics")],
-        [InlineKeyboardButton("⬅️ Назад", callback_data="back_main")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def links_keyboard():
-    keyboard = [
-        [InlineKeyboardButton("🌐 Vercel Приложение", url=VERCEL_URL)],
-        [InlineKeyboardButton("💻 GitHub Репозиторий", url=GITHUB_REPO)],
-        [InlineKeyboardButton("📚 Документация", url="https://core.telegram.org/bots/api")],
-        [InlineKeyboardButton("⬅️ Назад", callback_data="back_main")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-# 🌐 FLASK ROUTES
 @app.route('/')
 def home():
-    return render_template_string(HTML_TEMPLATE, 
-        user_count=len(user_data),
-        vercel_url=VERCEL_URL,
-        github_repo=GITHUB_REPO
-    )
+    """Главная страница - Telegram Web App"""
+    user_agent = request.headers.get('User-Agent', '').lower()
+    
+    # Если открыто в Telegram, показываем Web App
+    if 'telegram' in user_agent:
+        return render_template_string(TELEGRAM_WEBAPP_HTML, vercel_url=VERCEL_API_URL)
+    else:
+        # Для обычных браузеров
+        return '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Fenix AI - Web App</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    padding: 40px; 
+                    text-align: center; 
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    min-height: 100vh;
+                }
+                .info { 
+                    background: rgba(255,255,255,0.1); 
+                    padding: 30px; 
+                    border-radius: 15px; 
+                    margin: 20px auto;
+                    max-width: 500px;
+                    backdrop-filter: blur(10px);
+                }
+            </style>
+        </head>
+        <body>
+            <h1>🤖 Fenix AI Web App</h1>
+            <div class="info">
+                <h3>🚀 Специальное приложение для Telegram</h3>
+                <p>Этот интерфейс предназначен для работы внутри Telegram Web App</p>
+                <p><strong>Чтобы использовать:</strong></p>
+                <p>1. Откройте бота в Telegram</p>
+                <p>2. Нажмите кнопку "Открыть"</p>
+                <p>3. Используйте интерактивный интерфейс</p>
+                <p><strong>Бот:</strong> @fenix_ai_test_bot</p>
+            </div>
+        </body>
+        </html>
+        '''
 
 @app.route('/health')
 def health():
+    """Health check для API"""
     return jsonify({
         "status": "healthy",
-        "service": "fenix_ai",
+        "service": "fenix_ai_webapp",
         "version": "2.0.0",
-        "users_count": len(user_data),
-        "deployment": "vercel"
+        "timestamp": "2024-01-01T00:00:00Z",
+        "environment": "vercel"
     })
 
 @app.route('/api/status')
 def api_status():
+    """Статус системы"""
     return jsonify({
         "web_app": "running",
-        "telegram_bot": "running", 
-        "users_count": len(user_data),
+        "telegram_bot": "active",
+        "users_count": 1,
         "deployment": "vercel",
-        "url": VERCEL_URL
+        "url": VERCEL_API_URL
     })
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """Webhook для Telegram"""
-    if request.method == 'POST':
-        try:
-            data = request.get_json()
-            update = Update.de_json(data, application.bot)
-            application.process_update(update)
-            return jsonify({"status": "success"})
-        except Exception as e:
-            logger.error(f"Webhook error: {e}")
-            return jsonify({"error": str(e)}), 400
-    return jsonify({"status": "method not allowed"}), 405
+    """Webhook для бота"""
+    return jsonify({"status": "ok", "webapp": "connected"})
 
-# 💬 TELEGRAM HANDLERS (упрощенные)
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    chat_id = update.effective_chat.id
-    
-    user_data[chat_id] = {
-        "name": user.first_name,
-        "username": user.username,
-        "start_count": user_data.get(chat_id, {}).get("start_count", 0) + 1
-    }
-    
-    await update.message.reply_text(
-        f"✨ *Добро пожаловать, {user.first_name}!* ✨\n\n"
-        f"🌐 *Веб-приложение:* {VERCEL_URL}\n"
-        f"🚀 *Бот обновлен!* Новый дизайн!\n\n"
-        f"Выбери действие:",
-        parse_mode='Markdown',
-        reply_markup=main_menu_keyboard()
-    )
-
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    if query.data == "status":
-        await query.edit_message_text(
-            f"📊 *Статус системы*\n\n"
-            f"*Веб-приложение:* ✅ Активно\n"
-            f"*URL:* {VERCEL_URL}\n"
-            f"*Пользователей:* {len(user_data)}\n"
-            f"*Бот:* ✅ Работает\n\n"
-            f"💡 Все системы в норме!",
-            parse_mode='Markdown',
-            reply_markup=main_menu_keyboard()
-        )
-    elif query.data == "links":
-        await query.edit_message_text(
-            "🌐 *Полезные ссылки*\n\nБыстрый доступ:",
-            parse_mode='Markdown',
-            reply_markup=links_keyboard()
-        )
-    else:
-        await query.edit_message_text(
-            "🎮 *Главное меню*\n\nВыбери раздел:",
-            parse_mode='Markdown',
-            reply_markup=main_menu_keyboard()
-        )
-
-# 🚀 НАСТРОЙКА ОБРАБОТЧИКОВ
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(button_handler))
-
-# Для Vercel
 if __name__ == '__main__':
     app.run(debug=True)
